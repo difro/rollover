@@ -232,6 +232,22 @@ button:disabled {
   transition: opacity 140ms ease;
 }
 
+#build-badge {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  padding: 7px 10px;
+  border: 1px solid rgba(116, 215, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(4, 14, 23, 0.78);
+  color: rgba(211, 236, 250, 0.76);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
 #message.visible {
   opacity: 1;
 }
@@ -475,5 +491,10 @@ h1 {
 
   #reticle {
     bottom: 27%;
+  }
+
+  #build-badge {
+    font-size: 0.62rem;
+    padding: 6px 8px;
   }
 }
