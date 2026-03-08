@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Aldrich&family=Space+Grotesk:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260308c" />
+    <link rel="stylesheet" href="./styles.css?v=20260308d" />
   </head>
   <body>
     <div id="app" aria-label="Rollover Run scene"></div>
@@ -42,8 +42,12 @@
         <div class="briefing-card">
           <p class="briefing-label">Flight Deck</p>
           <p id="status-line" class="briefing-text">
-            휴대폰을 좌우로 기울여 비행 라인을 유지하세요.
+            주황 드론은 피하고 청록 코어는 받아내세요.
           </p>
+          <div class="legend-row" aria-hidden="true">
+            <span class="legend-pill danger">Avoid Drones</span>
+            <span class="legend-pill reward">Collect Cores</span>
+          </div>
           <div class="briefing-actions">
             <span id="mode-pill" class="mode-pill">Standby</span>
             <button id="recenter-button" type="button">Recenter</button>
@@ -54,11 +58,12 @@
       <div id="message" aria-live="polite"></div>
       <div id="speed-overlay" aria-hidden="true"></div>
       <div id="damage-flash" aria-hidden="true"></div>
+      <div id="pickup-flash" aria-hidden="true"></div>
       <div id="reticle" aria-hidden="true">
         <span class="reticle-line horizontal"></span>
         <span class="reticle-line vertical"></span>
       </div>
-      <div id="build-badge" aria-label="build version">build 20260308c</div>
+      <div id="build-badge" aria-label="build version">build 20260308d</div>
     </div>
 
     <div id="overlay" class="visible">
@@ -66,7 +71,7 @@
         <p class="eyebrow">Mobile Gyro 3D Dodge</p>
         <h1>Rollover Run</h1>
         <p id="overlay-body" class="overlay-body">
-          휴대폰을 비행기처럼 좌우로 롤 해서 상공에서 쏟아지는 적 드론을 피하세요.
+          휴대폰을 비행기처럼 좌우로 롤 해서 주황 드론은 피하고 청록 코어는 받아내세요.
         </p>
 
         <div class="overlay-grid">
@@ -76,7 +81,7 @@
           </div>
           <div class="overlay-panel">
             <span>Goal</span>
-            <strong>정면으로 밀려오는 적 회피</strong>
+            <strong>주황 적 회피, 청록 코어 수집</strong>
           </div>
           <div class="overlay-panel">
             <span>Style</span>
@@ -95,6 +100,6 @@
       </div>
     </div>
 
-    <script type="module" src="./main.js?v=20260308c"></script>
+    <script type="module" src="./main.js?v=20260308d"></script>
   </body>
 </html>

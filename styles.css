@@ -157,6 +157,45 @@ h1 {
   line-height: 1.4;
 }
 
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.legend-pill::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  box-shadow: 0 0 12px currentColor;
+  background: currentColor;
+}
+
+.legend-pill.danger {
+  color: #ff9b67;
+  border: 1px solid rgba(255, 123, 81, 0.24);
+}
+
+.legend-pill.reward {
+  color: #8df4cf;
+  border: 1px solid rgba(74, 255, 198, 0.24);
+}
+
 .briefing-actions {
   display: flex;
   align-items: center;
@@ -307,6 +346,7 @@ button:disabled {
 
 #speed-overlay,
 #damage-flash,
+#pickup-flash,
 #overlay {
   position: fixed;
   inset: 0;
@@ -332,6 +372,16 @@ button:disabled {
   background:
     radial-gradient(circle at center, rgba(255, 91, 95, 0.12), transparent 38%),
     radial-gradient(circle at center, transparent 54%, rgba(255, 91, 95, 0.28) 100%);
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+#pickup-flash {
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(96, 255, 214, 0.18), transparent 34%),
+    radial-gradient(circle at center, transparent 58%, rgba(96, 255, 214, 0.22) 100%);
+  mix-blend-mode: screen;
   opacity: 0;
   transition: opacity 80ms linear;
 }

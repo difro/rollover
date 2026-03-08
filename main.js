@@ -14,6 +14,7 @@ import * as THREE from "./vendor/three.module.js";
   const messageEl = document.getElementById("message");
   const speedOverlay = document.getElementById("speed-overlay");
   const damageFlash = document.getElementById("damage-flash");
+  const pickupFlash = document.getElementById("pickup-flash");
   const gyroStartButton = document.getElementById("gyro-start");
   const touchStartButton = document.getElementById("touch-start");
   const recenterButton = document.getElementById("recenter-button");
@@ -58,6 +59,7 @@ import * as THREE from "./vendor/three.module.js";
     hitCooldown: 0,
     invulnBlink: 0,
     damagePulse: 0,
+    pickupPulse: 0,
     cameraShake: 0,
     messageTimer: 0,
     playerFloat: 0,
@@ -296,6 +298,7 @@ import * as THREE from "./vendor/three.module.js";
 
     enemy.position.set(randomRange(-3.8, 3.8), randomRange(2.2, 6.3), randomRange(-118, -78));
     enemy.userData = {
+      kind: "enemy",
       drift: randomRange(-0.65, 0.65),
       speedScale: randomRange(0.94, 1.24),
       descentRate: randomRange(1.2, 1.85),
@@ -306,6 +309,63 @@ import * as THREE from "./vendor/three.module.js";
 
     enemyLayer.add(enemy);
     state.enemies.push(enemy);
+  }
+
+  function spawnPickup() {
+    const pickup = new THREE.Group();
+    const coreMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb8fff1,
+      emissive: 0x14c89a,
+      metalness: 0.18,
+      roughness: 0.18,
+    });
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: 0x66ffe0,
+      transparent: true,
+      opacity: 0.92,
+    });
+    const finMaterial = new THREE.MeshStandardMaterial({
+      color: 0x114e48,
+      emissive: 0x0a3d37,
+      metalness: 0.22,
+      roughness: 0.42,
+    });
+
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), coreMaterial);
+    pickup.add(core);
+
+    const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.055, 10, 30), ringMaterial);
+    ringA.rotation.x = Math.PI / 2;
+    pickup.add(ringA);
+
+    const ringB = ringA.clone();
+    ringB.rotation.y = Math.PI / 2;
+    pickup.add(ringB);
+
+    const verticalFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.08, 0.12), finMaterial);
+    pickup.add(verticalFin);
+
+    const horizontalFin = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.16, 0.12), finMaterial);
+    pickup.add(horizontalFin);
+
+    const glow = new THREE.PointLight(0x66ffe0, 8.5, 14, 2);
+    glow.position.z = 0.18;
+    pickup.add(glow);
+
+    pickup.position.set(randomRange(-3.4, 3.4), randomRange(1.6, 5.2), randomRange(-112, -84));
+    pickup.userData = {
+      kind: "pickup",
+      drift: randomRange(-0.35, 0.35),
+      speedScale: randomRange(0.9, 1.08),
+      descentRate: randomRange(0.85, 1.15),
+      phase: randomRange(0, Math.PI * 2),
+      spin: randomRange(1.2, 2.4),
+      pulse: randomRange(6, 9),
+      grazed: false,
+    };
+
+    enemyLayer.add(pickup);
+    state.enemies.push(pickup);
   }
 
   function updateHud() {
@@ -493,7 +553,8 @@ import * as THREE from "./vendor/three.module.js";
     if (state.controlMode === "gyro") {
       state.sensorTilt = clamp((roll - state.neutralRoll) / 24, -1, 1);
       if (firstSensorRead) {
-        statusLine.textContent = "센서 입력이 연결되었습니다. 휴대폰을 좌우로 롤 해서 이동하세요.";
+        statusLine.textContent =
+          "센서 입력이 연결되었습니다. 주황 드론은 피하고 청록 코어는 받아내세요.";
         showMessage("Gyro Live", 0.9);
       }
     }
@@ -596,7 +657,8 @@ import * as THREE from "./vendor/three.module.js";
     updateModeBadge();
     if (mode === "gyro") {
       state.neutralRoll = state.lastRoll;
-      statusLine.textContent = "휴대폰을 편하게 든 뒤 잠깐 기울여 센서 입력을 깨우세요.";
+      statusLine.textContent =
+        "휴대폰을 편하게 든 뒤 잠깐 기울여 센서를 깨우세요. 주황 적은 피하고 청록 코어는 먹으면 됩니다.";
       showMessage("Gyro Armed", 1);
       window.setTimeout(function () {
         if (state.playing && state.controlMode === "gyro" && !state.hasSensorReading) {
@@ -606,7 +668,8 @@ import * as THREE from "./vendor/three.module.js";
         }
       }, 1200);
     } else {
-      statusLine.textContent = "화면을 좌우로 드래그 해서 비행 라인을 조정하세요.";
+      statusLine.textContent =
+        "화면을 좌우로 드래그 하세요. 주황 적은 피하고 청록 코어는 먹으면 됩니다.";
       showMessage("Touch Flight", 1);
     }
 
@@ -631,6 +694,7 @@ import * as THREE from "./vendor/three.module.js";
     state.hitCooldown = 0;
     state.invulnBlink = 0;
     state.damagePulse = 0;
+    state.pickupPulse = 0;
     state.cameraShake = 0;
     state.playerFloat = 0;
     state.pointerDown = false;
@@ -638,6 +702,7 @@ import * as THREE from "./vendor/three.module.js";
     player.rotation.set(0, 0, 0);
     speedOverlay.style.opacity = "0";
     damageFlash.style.opacity = "0";
+    pickupFlash.style.opacity = "0";
   }
 
   function endRun() {
@@ -725,7 +790,11 @@ import * as THREE from "./vendor/three.module.js";
 
     state.spawnTimer -= delta;
     if (state.spawnTimer <= 0) {
-      spawnEnemy();
+      if (Math.random() < 0.22) {
+        spawnPickup();
+      } else {
+        spawnEnemy();
+      }
       const nextWave = Math.max(0.24, 0.72 - state.time * 0.015);
       state.spawnTimer = nextWave + randomRange(0.02, 0.14);
       if (state.speed > 48 && Math.random() < 0.18) {
@@ -745,27 +814,52 @@ import * as THREE from "./vendor/three.module.js";
       const enemy = state.enemies[index];
       const data = enemy.userData;
       enemy.position.z += state.speed * data.speedScale * delta;
-      enemy.position.y = Math.max(
-        -1.1,
-        enemy.position.y - data.descentRate * delta * 2.2,
-      );
-      enemy.position.x += Math.sin(state.time * 2.2 + data.phase) * data.drift * delta;
-      enemy.rotation.x += delta * (0.8 + data.spin * 0.25);
-      enemy.rotation.y += delta * 2.6;
-      enemy.rotation.z += delta * data.spin;
+      if (data.kind === "pickup") {
+        enemy.position.y = Math.max(
+          -0.72,
+          enemy.position.y - data.descentRate * delta * 1.55,
+        );
+        enemy.position.x += Math.sin(state.time * 2.8 + data.phase) * data.drift * delta;
+        enemy.rotation.x += delta * data.spin * 0.8;
+        enemy.rotation.y += delta * data.spin;
+        enemy.rotation.z += delta * data.spin * 0.5;
+        enemy.scale.setScalar(1 + Math.sin(state.time * data.pulse + data.phase) * 0.12);
+      } else {
+        enemy.position.y = Math.max(
+          -1.1,
+          enemy.position.y - data.descentRate * delta * 2.2,
+        );
+        enemy.position.x += Math.sin(state.time * 2.2 + data.phase) * data.drift * delta;
+        enemy.rotation.x += delta * (0.8 + data.spin * 0.25);
+        enemy.rotation.y += delta * 2.6;
+        enemy.rotation.z += delta * data.spin;
+      }
 
       const dx = enemy.position.x - player.position.x;
       const dy = enemy.position.y - player.position.y;
       const dz = enemy.position.z - player.position.z;
       const distanceSq = dx * dx + dy * dy + dz * dz;
 
-      if (!data.grazed && dz > -1.3 && dz < 0.8 && Math.abs(dx) < 1.1) {
+      if (
+        data.kind === "enemy" &&
+        !data.grazed &&
+        dz > -1.3 &&
+        dz < 0.8 &&
+        Math.abs(dx) < 1.1
+      ) {
         data.grazed = true;
         state.score += 30;
         showMessage("Near Miss +30", 0.65);
       }
 
-      if (state.hitCooldown <= 0 && distanceSq < 1.5) {
+      if (data.kind === "pickup" && distanceSq < 1.7) {
+        collectPickup();
+        enemyLayer.remove(enemy);
+        state.enemies.splice(index, 1);
+        continue;
+      }
+
+      if (data.kind === "enemy" && state.hitCooldown <= 0 && distanceSq < 1.5) {
         registerHit();
         enemyLayer.remove(enemy);
         state.enemies.splice(index, 1);
@@ -789,6 +883,21 @@ import * as THREE from "./vendor/three.module.js";
 
     if (state.shield <= 0) {
       endRun();
+    }
+  }
+
+  function collectPickup() {
+    const shieldBefore = state.shield;
+    state.shield = Math.min(100, state.shield + 20);
+    state.score += 120;
+    state.speed = Math.min(64, state.speed + 1.4);
+    state.pickupPulse = 1;
+
+    const gainedShield = Math.round(state.shield - shieldBefore);
+    if (gainedShield > 0) {
+      showMessage("Core +120 / Shield +" + gainedShield, 0.9);
+    } else {
+      showMessage("Core +120", 0.9);
     }
   }
 
@@ -864,11 +973,13 @@ import * as THREE from "./vendor/three.module.js";
     }
 
     state.damagePulse = THREE.MathUtils.damp(state.damagePulse, 0, 5, delta);
+    state.pickupPulse = THREE.MathUtils.damp(state.pickupPulse, 0, 6, delta);
     state.cameraShake = THREE.MathUtils.damp(state.cameraShake, 0, 7, delta);
 
     const speedPulse = clamp((state.speed - 34) / 26, 0, 1);
     speedOverlay.style.opacity = String(speedPulse * 0.9);
     damageFlash.style.opacity = String(state.damagePulse * 0.8);
+    pickupFlash.style.opacity = String(state.pickupPulse * 0.72);
 
     if (state.messageTimer > 0) {
       state.messageTimer = Math.max(0, state.messageTimer - delta);
