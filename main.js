@@ -255,115 +255,365 @@ import * as THREE from "./vendor/three.module.js";
     scene.add(state.stars);
   }
 
+  function pickEnemyType() {
+    const rammerBias = clamp((state.time - 18) / 34, 0, 0.18);
+    const sweeperBias = clamp((state.time - 8) / 28, 0, 0.16);
+    const droneCutoff = 0.54 - sweeperBias - rammerBias;
+    const sweeperCutoff = 0.82 - rammerBias;
+    const roll = Math.random();
+
+    if (roll < droneCutoff) {
+      return "drone";
+    }
+
+    if (roll < sweeperCutoff) {
+      return "sweeper";
+    }
+
+    return "rammer";
+  }
+
+  function pickPickupType() {
+    const roll = Math.random();
+    if (roll < 0.4) {
+      return "shield";
+    }
+
+    if (roll < 0.75) {
+      return "score";
+    }
+
+    return "boost";
+  }
+
   function spawnEnemy() {
+    const type = pickEnemyType();
     const enemy = new THREE.Group();
-    const coreMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffcb73,
-      emissive: 0xc14f08,
-      metalness: 0.25,
-      roughness: 0.34,
-    });
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff8a54,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const finMaterial = new THREE.MeshStandardMaterial({
-      color: 0x5c1304,
-      emissive: 0x330700,
-      metalness: 0.2,
-      roughness: 0.75,
-    });
+    const startX = type === "sweeper" ? randomRange(-2.3, 2.3) : randomRange(-3.8, 3.8);
+    const startY = randomRange(2.2, 6.3);
+    const startZ = randomRange(-118, -78);
 
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.56, 0), coreMaterial);
-    enemy.add(core);
+    if (type === "rammer") {
+      const spearMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff8b67,
+        emissive: 0xc33f12,
+        metalness: 0.26,
+        roughness: 0.28,
+      });
+      const finMaterial = new THREE.MeshStandardMaterial({
+        color: 0x5b1207,
+        emissive: 0x2d0700,
+        metalness: 0.22,
+        roughness: 0.58,
+      });
+      const spear = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.8, 6), spearMaterial);
+      spear.rotation.x = -Math.PI / 2;
+      enemy.add(spear);
 
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.08, 8, 20), ringMaterial);
-    ring.rotation.x = Math.PI / 2;
-    enemy.add(ring);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 1.3, 10), spearMaterial);
+      body.rotation.x = -Math.PI / 2;
+      body.position.z = 0.38;
+      enemy.add(body);
 
-    const leftFin = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.16), finMaterial);
-    leftFin.position.x = -0.52;
-    leftFin.rotation.z = 0.34;
-    enemy.add(leftFin);
+      const leftFin = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.18), finMaterial);
+      leftFin.position.set(-0.48, -0.02, 0.46);
+      leftFin.rotation.z = 0.38;
+      enemy.add(leftFin);
 
-    const rightFin = leftFin.clone();
-    rightFin.position.x = 0.52;
-    rightFin.rotation.z = -0.34;
-    enemy.add(rightFin);
+      const rightFin = leftFin.clone();
+      rightFin.position.x = 0.48;
+      rightFin.rotation.z = -0.38;
+      enemy.add(rightFin);
 
-    const trailLight = new THREE.PointLight(0xff8c47, 6.5, 10, 2.2);
-    trailLight.position.z = 0.2;
-    enemy.add(trailLight);
+      const light = new THREE.PointLight(0xff7240, 8.5, 12, 2);
+      light.position.z = 0.2;
+      enemy.add(light);
 
-    enemy.position.set(randomRange(-3.8, 3.8), randomRange(2.2, 6.3), randomRange(-118, -78));
-    enemy.userData = {
-      kind: "enemy",
-      drift: randomRange(-0.65, 0.65),
-      speedScale: randomRange(0.94, 1.24),
-      descentRate: randomRange(1.2, 1.85),
-      phase: randomRange(0, Math.PI * 2),
-      spin: randomRange(-2.6, 2.6),
-      grazed: false,
-    };
+      enemy.userData = {
+        kind: "enemy",
+        type: "rammer",
+        baseX: startX,
+        targetY: -1.18,
+        speedScale: randomRange(1.22, 1.52),
+        descentRate: randomRange(1.8, 2.5),
+        phase: randomRange(0, Math.PI * 2),
+        spin: randomRange(3.2, 4.4),
+        hitRadius: 1.35,
+        nearMissX: 0.95,
+        damage: 42,
+        hitMessage: "Rammed",
+        grazed: false,
+      };
+    } else if (type === "sweeper") {
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffd070,
+        emissive: 0xac5f10,
+        metalness: 0.22,
+        roughness: 0.42,
+      });
+      const wingMaterial = new THREE.MeshStandardMaterial({
+        color: 0x7a2b10,
+        emissive: 0x431000,
+        metalness: 0.18,
+        roughness: 0.52,
+      });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.34, 0.68), bodyMaterial);
+      enemy.add(body);
 
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.12, 0.22), wingMaterial);
+      wing.position.y = -0.02;
+      enemy.add(wing);
+
+      const blade = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.06, 8, 24), bodyMaterial);
+      blade.rotation.x = Math.PI / 2;
+      enemy.add(blade);
+
+      const light = new THREE.PointLight(0xffb24e, 7, 11, 2);
+      light.position.z = 0.1;
+      enemy.add(light);
+
+      enemy.userData = {
+        kind: "enemy",
+        type: "sweeper",
+        baseX: startX,
+        targetY: -0.96,
+        speedScale: randomRange(0.92, 1.08),
+        descentRate: randomRange(1.0, 1.35),
+        phase: randomRange(0, Math.PI * 2),
+        sweepAmp: randomRange(1.45, 2.2),
+        sweepFreq: randomRange(1.8, 2.4),
+        spin: randomRange(-1.4, 1.4),
+        hitRadius: 1.65,
+        nearMissX: 1.45,
+        damage: 26,
+        hitMessage: "Swept",
+        grazed: false,
+      };
+    } else {
+      const coreMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffcb73,
+        emissive: 0xc14f08,
+        metalness: 0.25,
+        roughness: 0.34,
+      });
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff8a54,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const finMaterial = new THREE.MeshStandardMaterial({
+        color: 0x5c1304,
+        emissive: 0x330700,
+        metalness: 0.2,
+        roughness: 0.75,
+      });
+
+      const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.56, 0), coreMaterial);
+      enemy.add(core);
+
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.08, 8, 20), ringMaterial);
+      ring.rotation.x = Math.PI / 2;
+      enemy.add(ring);
+
+      const leftFin = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.16), finMaterial);
+      leftFin.position.x = -0.52;
+      leftFin.rotation.z = 0.34;
+      enemy.add(leftFin);
+
+      const rightFin = leftFin.clone();
+      rightFin.position.x = 0.52;
+      rightFin.rotation.z = -0.34;
+      enemy.add(rightFin);
+
+      const light = new THREE.PointLight(0xff8c47, 6.5, 10, 2.2);
+      light.position.z = 0.2;
+      enemy.add(light);
+
+      enemy.userData = {
+        kind: "enemy",
+        type: "drone",
+        baseX: startX,
+        targetY: -1.1,
+        speedScale: randomRange(0.94, 1.24),
+        descentRate: randomRange(1.2, 1.85),
+        phase: randomRange(0, Math.PI * 2),
+        driftAmp: randomRange(0.75, 1.25),
+        spin: randomRange(-2.6, 2.6),
+        hitRadius: 1.25,
+        nearMissX: 1.1,
+        damage: 34,
+        hitMessage: "Impact",
+        grazed: false,
+      };
+    }
+
+    enemy.position.set(startX, startY, startZ);
     enemyLayer.add(enemy);
     state.enemies.push(enemy);
   }
 
   function spawnPickup() {
+    const type = pickPickupType();
     const pickup = new THREE.Group();
-    const coreMaterial = new THREE.MeshStandardMaterial({
-      color: 0xb8fff1,
-      emissive: 0x14c89a,
-      metalness: 0.18,
-      roughness: 0.18,
-    });
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: 0x66ffe0,
-      transparent: true,
-      opacity: 0.92,
-    });
-    const finMaterial = new THREE.MeshStandardMaterial({
-      color: 0x114e48,
-      emissive: 0x0a3d37,
-      metalness: 0.22,
-      roughness: 0.42,
-    });
+    const startX = type === "boost" ? randomRange(-2.8, 2.8) : randomRange(-3.2, 3.2);
+    const startY = randomRange(1.6, 5.2);
+    const startZ = randomRange(-112, -84);
 
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), coreMaterial);
-    pickup.add(core);
+    if (type === "score") {
+      const crystalMaterial = new THREE.MeshStandardMaterial({
+        color: 0x7fe8ff,
+        emissive: 0x1692d5,
+        metalness: 0.18,
+        roughness: 0.14,
+      });
+      const shardMaterial = new THREE.MeshBasicMaterial({
+        color: 0xc1f7ff,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.52, 0), crystalMaterial);
+      pickup.add(crystal);
 
-    const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.055, 10, 30), ringMaterial);
-    ringA.rotation.x = Math.PI / 2;
-    pickup.add(ringA);
+      const orbit = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.05, 10, 26), shardMaterial);
+      orbit.rotation.y = Math.PI / 2;
+      pickup.add(orbit);
 
-    const ringB = ringA.clone();
-    ringB.rotation.y = Math.PI / 2;
-    pickup.add(ringB);
+      const shard = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.0, 0.14), crystalMaterial);
+      pickup.add(shard);
 
-    const verticalFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.08, 0.12), finMaterial);
-    pickup.add(verticalFin);
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.14, 0.14), crystalMaterial);
+      pickup.add(cross);
 
-    const horizontalFin = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.16, 0.12), finMaterial);
-    pickup.add(horizontalFin);
+      const light = new THREE.PointLight(0x7fe8ff, 8, 14, 2);
+      light.position.z = 0.12;
+      pickup.add(light);
 
-    const glow = new THREE.PointLight(0x66ffe0, 8.5, 14, 2);
-    glow.position.z = 0.18;
-    pickup.add(glow);
+      pickup.userData = {
+        kind: "pickup",
+        type: "score",
+        baseX: startX,
+        targetY: -0.82,
+        speedScale: randomRange(0.92, 1.08),
+        descentRate: randomRange(0.95, 1.22),
+        phase: randomRange(0, Math.PI * 2),
+        pulse: randomRange(7, 10),
+        driftAmp: randomRange(0.32, 0.56),
+        spin: randomRange(1.4, 2.6),
+        hitRadius: 1.28,
+        scoreReward: 260,
+        shieldReward: 0,
+        speedReward: 0.4,
+        collectMessage: "Cache +260",
+      };
+    } else if (type === "boost") {
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0x77ffd3,
+        transparent: true,
+        opacity: 0.94,
+      });
+      const coreMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd9fff6,
+        emissive: 0x1fc1ff,
+        metalness: 0.16,
+        roughness: 0.18,
+      });
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.28, 18, 18), coreMaterial);
+      pickup.add(core);
 
-    pickup.position.set(randomRange(-3.4, 3.4), randomRange(1.6, 5.2), randomRange(-112, -84));
-    pickup.userData = {
-      kind: "pickup",
-      drift: randomRange(-0.35, 0.35),
-      speedScale: randomRange(0.9, 1.08),
-      descentRate: randomRange(0.85, 1.15),
-      phase: randomRange(0, Math.PI * 2),
-      spin: randomRange(1.2, 2.4),
-      pulse: randomRange(6, 9),
-      grazed: false,
-    };
+      const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.05, 10, 28), ringMaterial);
+      ringA.rotation.x = Math.PI / 2;
+      pickup.add(ringA);
 
+      const ringB = ringA.clone();
+      ringB.scale.setScalar(1.34);
+      ringB.rotation.y = Math.PI / 2;
+      pickup.add(ringB);
+
+      const ringC = ringA.clone();
+      ringC.scale.setScalar(1.68);
+      pickup.add(ringC);
+
+      const light = new THREE.PointLight(0x77ffd3, 9.5, 15, 2);
+      light.position.z = 0.15;
+      pickup.add(light);
+
+      pickup.userData = {
+        kind: "pickup",
+        type: "boost",
+        baseX: startX,
+        targetY: -0.74,
+        speedScale: randomRange(0.94, 1.12),
+        descentRate: randomRange(1.0, 1.28),
+        phase: randomRange(0, Math.PI * 2),
+        pulse: randomRange(8, 11),
+        driftAmp: randomRange(0.56, 0.92),
+        spin: randomRange(2.4, 3.4),
+        hitRadius: 1.34,
+        scoreReward: 120,
+        shieldReward: 10,
+        speedReward: 4,
+        collectMessage: "Boost +120",
+      };
+    } else {
+      const coreMaterial = new THREE.MeshStandardMaterial({
+        color: 0xb8fff1,
+        emissive: 0x14c89a,
+        metalness: 0.18,
+        roughness: 0.18,
+      });
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0x66ffe0,
+        transparent: true,
+        opacity: 0.92,
+      });
+      const finMaterial = new THREE.MeshStandardMaterial({
+        color: 0x114e48,
+        emissive: 0x0a3d37,
+        metalness: 0.22,
+        roughness: 0.42,
+      });
+
+      const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), coreMaterial);
+      pickup.add(core);
+
+      const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.055, 10, 30), ringMaterial);
+      ringA.rotation.x = Math.PI / 2;
+      pickup.add(ringA);
+
+      const ringB = ringA.clone();
+      ringB.rotation.y = Math.PI / 2;
+      pickup.add(ringB);
+
+      const verticalFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.08, 0.12), finMaterial);
+      pickup.add(verticalFin);
+
+      const horizontalFin = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.16, 0.12), finMaterial);
+      pickup.add(horizontalFin);
+
+      const light = new THREE.PointLight(0x66ffe0, 8.5, 14, 2);
+      light.position.z = 0.18;
+      pickup.add(light);
+
+      pickup.userData = {
+        kind: "pickup",
+        type: "shield",
+        baseX: startX,
+        targetY: -0.78,
+        speedScale: randomRange(0.9, 1.08),
+        descentRate: randomRange(0.85, 1.15),
+        phase: randomRange(0, Math.PI * 2),
+        pulse: randomRange(6, 9),
+        driftAmp: randomRange(0.42, 0.66),
+        spin: randomRange(1.2, 2.4),
+        hitRadius: 1.3,
+        scoreReward: 80,
+        shieldReward: 28,
+        speedReward: 0.8,
+        collectMessage: "Shield +28",
+      };
+    }
+
+    pickup.position.set(startX, startY, startZ);
     enemyLayer.add(pickup);
     state.enemies.push(pickup);
   }
@@ -816,23 +1066,52 @@ import * as THREE from "./vendor/three.module.js";
       enemy.position.z += state.speed * data.speedScale * delta;
       if (data.kind === "pickup") {
         enemy.position.y = Math.max(
-          -0.72,
+          data.targetY,
           enemy.position.y - data.descentRate * delta * 1.55,
         );
-        enemy.position.x += Math.sin(state.time * 2.8 + data.phase) * data.drift * delta;
-        enemy.rotation.x += delta * data.spin * 0.8;
-        enemy.rotation.y += delta * data.spin;
-        enemy.rotation.z += delta * data.spin * 0.5;
+        if (data.type === "boost") {
+          enemy.position.x = data.baseX + Math.sin(state.time * 4.5 + data.phase) * data.driftAmp;
+          enemy.rotation.x += delta * data.spin;
+          enemy.rotation.y += delta * data.spin * 1.2;
+          enemy.rotation.z += delta * data.spin * 0.8;
+        } else if (data.type === "score") {
+          enemy.position.x = data.baseX + Math.sin(state.time * 3.2 + data.phase) * data.driftAmp;
+          enemy.rotation.x += delta * data.spin * 0.65;
+          enemy.rotation.y += delta * data.spin;
+          enemy.rotation.z += delta * data.spin * 0.45;
+        } else {
+          enemy.position.x = data.baseX + Math.sin(state.time * 2.8 + data.phase) * data.driftAmp;
+          enemy.rotation.x += delta * data.spin * 0.8;
+          enemy.rotation.y += delta * data.spin;
+          enemy.rotation.z += delta * data.spin * 0.5;
+        }
         enemy.scale.setScalar(1 + Math.sin(state.time * data.pulse + data.phase) * 0.12);
       } else {
         enemy.position.y = Math.max(
-          -1.1,
+          data.targetY,
           enemy.position.y - data.descentRate * delta * 2.2,
         );
-        enemy.position.x += Math.sin(state.time * 2.2 + data.phase) * data.drift * delta;
-        enemy.rotation.x += delta * (0.8 + data.spin * 0.25);
-        enemy.rotation.y += delta * 2.6;
-        enemy.rotation.z += delta * data.spin;
+        if (data.type === "rammer") {
+          enemy.position.x = THREE.MathUtils.damp(
+            enemy.position.x,
+            player.position.x * 0.52 + data.baseX * 0.48,
+            1.6,
+            delta,
+          );
+          enemy.rotation.x += delta * data.spin;
+          enemy.rotation.y += delta * 1.4;
+          enemy.rotation.z = THREE.MathUtils.damp(enemy.rotation.z, -player.rotation.z * 0.3, 2, delta);
+        } else if (data.type === "sweeper") {
+          enemy.position.x = data.baseX + Math.sin(state.time * data.sweepFreq + data.phase) * data.sweepAmp;
+          enemy.rotation.x += delta * 0.9;
+          enemy.rotation.y += delta * 1.6;
+          enemy.rotation.z += delta * data.spin;
+        } else {
+          enemy.position.x = data.baseX + Math.sin(state.time * 2.2 + data.phase) * data.driftAmp;
+          enemy.rotation.x += delta * (0.8 + data.spin * 0.25);
+          enemy.rotation.y += delta * 2.6;
+          enemy.rotation.z += delta * data.spin;
+        }
       }
 
       const dx = enemy.position.x - player.position.x;
@@ -845,22 +1124,26 @@ import * as THREE from "./vendor/three.module.js";
         !data.grazed &&
         dz > -1.3 &&
         dz < 0.8 &&
-        Math.abs(dx) < 1.1
+        Math.abs(dx) < data.nearMissX
       ) {
         data.grazed = true;
         state.score += 30;
         showMessage("Near Miss +30", 0.65);
       }
 
-      if (data.kind === "pickup" && distanceSq < 1.7) {
-        collectPickup();
+      if (data.kind === "pickup" && distanceSq < data.hitRadius * data.hitRadius) {
+        collectPickup(data);
         enemyLayer.remove(enemy);
         state.enemies.splice(index, 1);
         continue;
       }
 
-      if (data.kind === "enemy" && state.hitCooldown <= 0 && distanceSq < 1.5) {
-        registerHit();
+      if (
+        data.kind === "enemy" &&
+        state.hitCooldown <= 0 &&
+        distanceSq < data.hitRadius * data.hitRadius
+      ) {
+        registerHit(data);
         enemyLayer.remove(enemy);
         state.enemies.splice(index, 1);
         continue;
@@ -873,32 +1156,33 @@ import * as THREE from "./vendor/three.module.js";
     }
   }
 
-  function registerHit() {
-    state.shield = Math.max(0, state.shield - 34);
+  function registerHit(enemyData) {
+    const damage = enemyData && enemyData.damage ? enemyData.damage : 34;
+    state.shield = Math.max(0, state.shield - damage);
     state.hitCooldown = 1.15;
     state.invulnBlink = 1.15;
     state.damagePulse = 1;
     state.cameraShake = 1;
-    showMessage("Impact", 0.9);
+    showMessage((enemyData && enemyData.hitMessage) || "Impact", 0.9);
 
     if (state.shield <= 0) {
       endRun();
     }
   }
 
-  function collectPickup() {
+  function collectPickup(pickupData) {
     const shieldBefore = state.shield;
-    state.shield = Math.min(100, state.shield + 20);
-    state.score += 120;
-    state.speed = Math.min(64, state.speed + 1.4);
+    state.shield = Math.min(100, state.shield + (pickupData.shieldReward || 0));
+    state.score += pickupData.scoreReward || 0;
+    state.speed = Math.min(64, state.speed + (pickupData.speedReward || 0));
     state.pickupPulse = 1;
 
     const gainedShield = Math.round(state.shield - shieldBefore);
-    if (gainedShield > 0) {
-      showMessage("Core +120 / Shield +" + gainedShield, 0.9);
-    } else {
-      showMessage("Core +120", 0.9);
+    let label = pickupData.collectMessage || "Core";
+    if (gainedShield > 0 && pickupData.type !== "shield") {
+      label += " / Shield +" + gainedShield;
     }
+    showMessage(label, 0.9);
   }
 
   function animateWorld(delta, worldSpeed) {
