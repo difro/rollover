@@ -30,8 +30,11 @@ body {
     linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
   color: var(--text);
   font-family: "Space Grotesk", "Segoe UI", sans-serif;
-  touch-action: none;
   overscroll-behavior: none;
+}
+
+body.playing {
+  touch-action: none;
 }
 
 body::before,
@@ -66,6 +69,7 @@ body::after {
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: none;
 }
 
 #hud {
@@ -183,6 +187,9 @@ button {
   font: inherit;
   color: var(--text);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 button:disabled {

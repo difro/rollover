@@ -18,6 +18,7 @@ import * as THREE from "./vendor/three.module.js";
   const touchStartButton = document.getElementById("touch-start");
   const recenterButton = document.getElementById("recenter-button");
   const defaultOverlayBody = overlayBody.textContent.trim();
+  let fatalErrorShown = false;
 
   const safeStorage = {
     loadBest() {
@@ -69,73 +70,27 @@ import * as THREE from "./vendor/three.module.js";
     starsData: [],
   };
 
-  const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: "high-performance",
+  let renderer;
+  let scene;
+  let camera;
+  let world;
+  let enemyLayer;
+  let player;
+
+  window.addEventListener("error", function (event) {
+    showFatalError(event.error || event.message);
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0x02070d, 1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
-  app.appendChild(renderer.domElement);
+  window.addEventListener("unhandledrejection", function (event) {
+    showFatalError(event.reason);
+  });
 
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x02070d, 18, 130);
-
-  const camera = new THREE.PerspectiveCamera(
-    62,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    220,
-  );
-  camera.position.set(0, 2.7, 7.5);
-  camera.lookAt(0, -0.8, -18);
-
-  const world = new THREE.Group();
-  const enemyLayer = new THREE.Group();
-  scene.add(world);
-  scene.add(enemyLayer);
-
-  const hemiLight = new THREE.HemisphereLight(0x8fdfff, 0x03131f, 1.1);
-  const sunLight = new THREE.DirectionalLight(0xffe0aa, 1.2);
-  sunLight.position.set(3.5, 8, 6);
-  const fillLight = new THREE.PointLight(0x38d8ff, 16, 42, 2.2);
-  fillLight.position.set(0, 1.6, 8);
-  scene.add(hemiLight, sunLight, fillLight);
-
-  const player = createPlayer();
-  player.position.set(0, -1.12, 2.6);
-  scene.add(player);
-
-  createRunway();
-  createStars();
-  updateHud();
-  updateMenuCopy();
-  updateModeBadge();
-  if (!supportsDeviceOrientation()) {
-    gyroStartButton.textContent = "센서 없음";
-  } else if (!isSecureSensorContext()) {
-    gyroStartButton.textContent = "HTTPS 필요";
-  }
-
-  window.addEventListener("resize", handleResize);
-  window.addEventListener("deviceorientation", handleOrientation, true);
-  window.addEventListener("keydown", handleKeyDown);
-  window.addEventListener("keyup", handleKeyUp);
-  window.addEventListener("pointerdown", handlePointerDown, { passive: true });
-  window.addEventListener("pointermove", handlePointerMove, { passive: true });
-  window.addEventListener("pointerup", handlePointerUp, { passive: true });
-  window.addEventListener("pointercancel", handlePointerUp, { passive: true });
-
-  gyroStartButton.addEventListener("click", startWithGyro);
-  touchStartButton.addEventListener("click", function () {
+  bindPress(gyroStartButton, startWithGyro);
+  bindPress(touchStartButton, function () {
     startRun("touch");
   });
-  recenterButton.addEventListener("click", recenterControl);
+  bindPress(recenterButton, recenterControl);
 
-  requestAnimationFrame(loop);
+  boot();
 
   function createPlayer() {
     const group = new THREE.Group();
@@ -397,7 +352,118 @@ import * as THREE from "./vendor/three.module.js";
     messageEl.classList.remove("visible");
   }
 
+  function bindPress(element, handler) {
+    let lastFire = 0;
+
+    function fire(event) {
+      const now = Date.now();
+      if (now - lastFire < 350) {
+        return;
+      }
+      lastFire = now;
+      if (event && typeof event.preventDefault === "function") {
+        event.preventDefault();
+      }
+      handler(event);
+    }
+
+    element.addEventListener("click", fire);
+    element.addEventListener("pointerup", fire);
+    element.addEventListener("touchend", fire, { passive: false });
+  }
+
+  function boot() {
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x02070d, 1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      app.appendChild(renderer.domElement);
+
+      scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x02070d, 18, 130);
+
+      camera = new THREE.PerspectiveCamera(
+        62,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        220,
+      );
+      camera.position.set(0, 2.7, 7.5);
+      camera.lookAt(0, -0.8, -18);
+
+      world = new THREE.Group();
+      enemyLayer = new THREE.Group();
+      scene.add(world);
+      scene.add(enemyLayer);
+
+      const hemiLight = new THREE.HemisphereLight(0x8fdfff, 0x03131f, 1.1);
+      const sunLight = new THREE.DirectionalLight(0xffe0aa, 1.2);
+      sunLight.position.set(3.5, 8, 6);
+      const fillLight = new THREE.PointLight(0x38d8ff, 16, 42, 2.2);
+      fillLight.position.set(0, 1.6, 8);
+      scene.add(hemiLight, sunLight, fillLight);
+
+      player = createPlayer();
+      player.position.set(0, -1.12, 2.6);
+      scene.add(player);
+
+      createRunway();
+      createStars();
+      updateHud();
+      updateMenuCopy();
+      updateModeBadge();
+      if (!supportsDeviceOrientation()) {
+        gyroStartButton.textContent = "센서 없음";
+      } else if (!isSecureSensorContext()) {
+        gyroStartButton.textContent = "HTTPS 필요";
+      }
+
+      window.addEventListener("resize", handleResize);
+      window.addEventListener("deviceorientation", handleOrientation, true);
+      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyUp);
+      window.addEventListener("pointerdown", handlePointerDown, { passive: true });
+      window.addEventListener("pointermove", handlePointerMove, { passive: true });
+      window.addEventListener("pointerup", handlePointerUp, { passive: true });
+      window.addEventListener("pointercancel", handlePointerUp, { passive: true });
+
+      requestAnimationFrame(loop);
+    } catch (error) {
+      showFatalError(error);
+    }
+  }
+
+  function showFatalError(error) {
+    if (fatalErrorShown) {
+      return;
+    }
+    fatalErrorShown = true;
+
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : String(error || "unknown error");
+
+    overlay.classList.add("visible");
+    overlayBody.textContent = "초기화에 실패했습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.";
+    sensorNote.textContent = "오류: " + message.slice(0, 160);
+    statusLine.textContent = "초기화 오류가 발생했습니다.";
+    gyroStartButton.disabled = true;
+    touchStartButton.disabled = true;
+    document.body.classList.remove("playing");
+  }
+
   function handleResize() {
+    if (!camera || !renderer) {
+      return;
+    }
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -410,10 +476,15 @@ import * as THREE from "./vendor/three.module.js";
       return;
     }
 
+    const firstSensorRead = !state.hasSensorReading;
     state.hasSensorReading = true;
     state.lastRoll = roll;
     if (state.controlMode === "gyro") {
       state.sensorTilt = clamp((roll - state.neutralRoll) / 24, -1, 1);
+      if (firstSensorRead) {
+        statusLine.textContent = "센서 입력이 연결되었습니다. 휴대폰을 좌우로 롤 해서 이동하세요.";
+        showMessage("Gyro Live", 0.9);
+      }
     }
   }
 
@@ -509,19 +580,18 @@ import * as THREE from "./vendor/three.module.js";
     resetRunState();
 
     state.controlMode = mode;
+    state.hasSensorReading = false;
     overlayBody.textContent = defaultOverlayBody;
     updateModeBadge();
     if (mode === "gyro") {
       state.neutralRoll = state.lastRoll;
-      statusLine.textContent = "휴대폰을 편하게 든 뒤 좌우로 롤 해서 비행 라인을 조정하세요.";
+      statusLine.textContent = "휴대폰을 편하게 든 뒤 잠깐 기울여 센서 입력을 깨우세요.";
       showMessage("Gyro Armed", 1);
       window.setTimeout(function () {
         if (state.playing && state.controlMode === "gyro" && !state.hasSensorReading) {
-          state.controlMode = "touch";
-          updateModeBadge();
           statusLine.textContent =
-            "센서 응답이 없어 터치 조작으로 전환했습니다. 화면을 좌우로 드래그 하세요.";
-          showMessage("Touch Fallback", 1.2);
+            "아직 센서 입력이 없습니다. 휴대폰을 한 번 더 기울이거나 모션 권한을 확인하세요.";
+          showMessage("Waiting Gyro", 1.2);
         }
       }, 1200);
     } else {
@@ -531,6 +601,7 @@ import * as THREE from "./vendor/three.module.js";
 
     overlay.classList.remove("visible");
     state.playing = true;
+    document.body.classList.add("playing");
     updateHud();
   }
 
@@ -560,6 +631,7 @@ import * as THREE from "./vendor/three.module.js";
 
   function endRun() {
     state.playing = false;
+    document.body.classList.remove("playing");
     state.bestScore = Math.max(state.bestScore, Math.floor(state.score));
     safeStorage.saveBest(state.bestScore);
     updateHud();
