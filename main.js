@@ -1,4 +1,4 @@
-"use strict";
+import * as THREE from "./vendor/three.module.js";
 
 (function () {
   const app = document.getElementById("app");
