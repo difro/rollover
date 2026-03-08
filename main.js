@@ -39,7 +39,7 @@ import * as THREE from "./vendor/three.module.js";
 
   const state = {
     playing: false,
-    controlMode: "touch",
+    controlMode: "idle",
     bestScore: safeStorage.loadBest(),
     score: 0,
     shield: 100,
@@ -316,7 +316,17 @@ import * as THREE from "./vendor/three.module.js";
   }
 
   function updateModeBadge() {
-    modePill.textContent = state.controlMode === "gyro" ? "Gyro" : "Touch";
+    if (state.controlMode === "gyro") {
+      modePill.textContent = "Gyro";
+      return;
+    }
+
+    if (state.controlMode === "touch") {
+      modePill.textContent = "Touch";
+      return;
+    }
+
+    modePill.textContent = "Standby";
   }
 
   function updateMenuCopy(extra) {
