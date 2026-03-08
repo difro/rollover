@@ -9,6 +9,7 @@ import * as THREE from "./vendor/three.module.js";
   const shieldValue = document.getElementById("shield-value");
   const speedValue = document.getElementById("speed-value");
   const bestValue = document.getElementById("best-value");
+  const bossValue = document.getElementById("boss-value");
   const modePill = document.getElementById("mode-pill");
   const statusLine = document.getElementById("status-line");
   const messageEl = document.getElementById("message");
@@ -17,6 +18,7 @@ import * as THREE from "./vendor/three.module.js";
   const pickupFlash = document.getElementById("pickup-flash");
   const gyroStartButton = document.getElementById("gyro-start");
   const touchStartButton = document.getElementById("touch-start");
+  const audioButton = document.getElementById("audio-button");
   const recenterButton = document.getElementById("recenter-button");
   const defaultOverlayBody = overlayBody.textContent.trim();
   let fatalErrorShown = false;
@@ -70,6 +72,25 @@ import * as THREE from "./vendor/three.module.js";
     gates: [],
     stars: null,
     starsData: [],
+    boss: {
+      active: false,
+      wave: 0,
+      nextAt: 28,
+      health: 0,
+      maxHealth: 0,
+      elapsed: 0,
+      attackTimer: 0,
+      coreTimer: 0,
+      retreating: false,
+      escaped: false,
+      group: null,
+    },
+  };
+
+  const audio = {
+    enabled: loadAudioEnabled(),
+    context: null,
+    master: null,
   };
 
   let renderer;
@@ -90,6 +111,7 @@ import * as THREE from "./vendor/three.module.js";
   bindPress(touchStartButton, function () {
     startRun("touch");
   });
+  bindPress(audioButton, toggleAudio);
   bindPress(recenterButton, recenterControl);
 
   boot();
@@ -286,12 +308,19 @@ import * as THREE from "./vendor/three.module.js";
     return "boost";
   }
 
-  function spawnEnemy() {
-    const type = pickEnemyType();
+  function spawnEnemy(typeOverride, overrides) {
+    const type = typeOverride || pickEnemyType();
     const enemy = new THREE.Group();
-    const startX = type === "sweeper" ? randomRange(-2.3, 2.3) : randomRange(-3.8, 3.8);
-    const startY = randomRange(2.2, 6.3);
-    const startZ = randomRange(-118, -78);
+    const startX =
+      overrides && typeof overrides.x === "number"
+        ? overrides.x
+        : type === "sweeper"
+          ? randomRange(-2.3, 2.3)
+          : randomRange(-3.8, 3.8);
+    const startY =
+      overrides && typeof overrides.y === "number" ? overrides.y : randomRange(2.2, 6.3);
+    const startZ =
+      overrides && typeof overrides.z === "number" ? overrides.z : randomRange(-118, -78);
 
     if (type === "rammer") {
       const spearMaterial = new THREE.MeshStandardMaterial({
@@ -452,14 +481,64 @@ import * as THREE from "./vendor/three.module.js";
     state.enemies.push(enemy);
   }
 
-  function spawnPickup() {
-    const type = pickPickupType();
+  function spawnPickup(typeOverride, overrides) {
+    const type = typeOverride || pickPickupType();
     const pickup = new THREE.Group();
-    const startX = type === "boost" ? randomRange(-2.8, 2.8) : randomRange(-3.2, 3.2);
-    const startY = randomRange(1.6, 5.2);
-    const startZ = randomRange(-112, -84);
+    const startX =
+      overrides && typeof overrides.x === "number"
+        ? overrides.x
+        : type === "boost"
+          ? randomRange(-2.8, 2.8)
+          : randomRange(-3.2, 3.2);
+    const startY =
+      overrides && typeof overrides.y === "number" ? overrides.y : randomRange(1.6, 5.2);
+    const startZ =
+      overrides && typeof overrides.z === "number" ? overrides.z : randomRange(-112, -84);
 
-    if (type === "score") {
+    if (type === "boss") {
+      const coreMaterial = new THREE.MeshStandardMaterial({
+        color: 0xe9fffb,
+        emissive: 0x44caff,
+        metalness: 0.16,
+        roughness: 0.14,
+      });
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.96,
+      });
+      const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), coreMaterial);
+      pickup.add(core);
+
+      const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.045, 10, 30), ringMaterial);
+      ringA.rotation.x = Math.PI / 2;
+      pickup.add(ringA);
+
+      const ringB = ringA.clone();
+      ringB.rotation.y = Math.PI / 2;
+      pickup.add(ringB);
+
+      const light = new THREE.PointLight(0x7fe8ff, 10, 16, 2);
+      pickup.add(light);
+
+      pickup.userData = {
+        kind: "pickup",
+        type: "boss",
+        baseX: startX,
+        targetY: -0.68,
+        speedScale: 1.04,
+        descentRate: 1.1,
+        phase: randomRange(0, Math.PI * 2),
+        pulse: randomRange(8, 11),
+        driftAmp: 0.42,
+        spin: 2.8,
+        hitRadius: 1.34,
+        scoreReward: 180,
+        shieldReward: 6,
+        speedReward: 0.6,
+        collectMessage: "Boss Core -1",
+      };
+    } else if (type === "score") {
       const crystalMaterial = new THREE.MeshStandardMaterial({
         color: 0x7fe8ff,
         emissive: 0x1692d5,
@@ -618,11 +697,202 @@ import * as THREE from "./vendor/three.module.js";
     state.enemies.push(pickup);
   }
 
+  function createBoss() {
+    const boss = new THREE.Group();
+    const hullMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffc06c,
+      emissive: 0x8f2a08,
+      metalness: 0.26,
+      roughness: 0.34,
+    });
+    const wingMaterial = new THREE.MeshStandardMaterial({
+      color: 0x651707,
+      emissive: 0x320500,
+      metalness: 0.18,
+      roughness: 0.58,
+    });
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff8a5a,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    const core = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.2, 1.4), hullMaterial);
+    boss.add(core);
+
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.18, 0.34), wingMaterial);
+    wing.position.y = -0.08;
+    boss.add(wing);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.12, 10, 30), glowMaterial);
+    ring.rotation.x = Math.PI / 2;
+    boss.add(ring);
+
+    const finLeft = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.2, 6), hullMaterial);
+    finLeft.rotation.z = Math.PI / 2;
+    finLeft.position.set(-2.1, -0.2, 0.1);
+    boss.add(finLeft);
+
+    const finRight = finLeft.clone();
+    finRight.rotation.z = -Math.PI / 2;
+    finRight.position.x = 2.1;
+    boss.add(finRight);
+
+    const light = new THREE.PointLight(0xff7e4d, 14, 28, 2);
+    light.position.z = 0.6;
+    boss.add(light);
+
+    boss.position.set(0, 1.6, -84);
+    enemyLayer.add(boss);
+    return boss;
+  }
+
+  function startBossWave() {
+    clearBossWave();
+    state.boss.wave += 1;
+    state.boss.active = true;
+    state.boss.health = Math.min(6, 3 + state.boss.wave);
+    state.boss.maxHealth = state.boss.health;
+    state.boss.elapsed = 0;
+    state.boss.attackTimer = 1.5;
+    state.boss.coreTimer = 2.2;
+    state.boss.retreating = false;
+    state.boss.escaped = false;
+    state.boss.group = createBoss();
+    statusLine.textContent =
+      "Boss Wave " +
+      state.boss.wave +
+      ". 보스가 떨어뜨리는 밝은 코어를 먹어 실드를 깨고, 공격 패턴은 회피하세요.";
+    showMessage("Boss Wave " + state.boss.wave, 1.4);
+    playBossWarningSound();
+    updateBossHud();
+  }
+
+  function clearBossWave() {
+    if (state.boss.group) {
+      enemyLayer.remove(state.boss.group);
+      state.boss.group = null;
+    }
+    state.boss.active = false;
+    state.boss.health = 0;
+    state.boss.maxHealth = 0;
+    state.boss.elapsed = 0;
+    state.boss.attackTimer = 0;
+    state.boss.coreTimer = 0;
+    state.boss.retreating = false;
+    state.boss.escaped = false;
+    updateBossHud();
+  }
+
+  function defeatBossWave() {
+    if (!state.boss.active) {
+      return;
+    }
+    state.score += 600 + state.boss.wave * 120;
+    state.shield = Math.min(100, state.shield + 18);
+    state.boss.retreating = true;
+    statusLine.textContent = "Boss down. 다음 웨이브까지 일반 패턴으로 복귀합니다.";
+    showMessage("Boss Down +" + (600 + state.boss.wave * 120), 1.4);
+    playBossDefeatSound();
+    state.boss.nextAt = state.time + 32 + state.boss.wave * 4;
+  }
+
+  function bossEscapes() {
+    if (!state.boss.active || state.boss.escaped) {
+      return;
+    }
+    state.boss.escaped = true;
+    state.boss.retreating = true;
+    statusLine.textContent = "보스가 후퇴했습니다. 다음 웨이브 전까지 일반 패턴을 버티세요.";
+    showMessage("Boss Escaped", 1.2);
+    state.boss.nextAt = state.time + 26;
+  }
+
+  function spawnBossPattern() {
+    const bossX = state.boss.group ? state.boss.group.position.x : 0;
+    const bossY = state.boss.group ? state.boss.group.position.y + 0.2 : 2.6;
+    const bossZ = state.boss.group ? state.boss.group.position.z - 10 : -68;
+    const pattern = Math.floor(Math.random() * 3);
+
+    if (pattern === 0) {
+      spawnEnemy("rammer", { x: bossX - 1.6, y: bossY + 0.3, z: bossZ });
+      spawnEnemy("rammer", { x: bossX + 1.6, y: bossY + 0.3, z: bossZ });
+      return;
+    }
+
+    if (pattern === 1) {
+      spawnEnemy("sweeper", { x: -1.5, y: bossY, z: bossZ - 6 });
+      spawnEnemy("sweeper", { x: 1.5, y: bossY + 0.4, z: bossZ - 12 });
+      return;
+    }
+
+    spawnEnemy("drone", { x: bossX - 2.2, y: bossY + 0.5, z: bossZ - 4 });
+    spawnEnemy("drone", { x: bossX, y: bossY + 0.9, z: bossZ - 10 });
+    spawnEnemy("drone", { x: bossX + 2.2, y: bossY + 0.5, z: bossZ - 16 });
+  }
+
+  function spawnBossCore() {
+    const bossX = state.boss.group ? state.boss.group.position.x : 0;
+    const bossY = state.boss.group ? state.boss.group.position.y + 0.9 : 2.4;
+    const bossZ = state.boss.group ? state.boss.group.position.z - 14 : -72;
+    spawnPickup("boss", {
+      x: bossX + randomRange(-1.3, 1.3),
+      y: bossY + randomRange(-0.3, 0.8),
+      z: bossZ,
+    });
+  }
+
+  function updateBossWave(delta) {
+    if (!state.boss.active || !state.boss.group) {
+      return;
+    }
+
+    state.boss.elapsed += delta;
+    const boss = state.boss.group;
+    const targetZ = state.boss.retreating ? -110 : -34;
+    boss.position.z = THREE.MathUtils.damp(boss.position.z, targetZ, 1.6, delta);
+    boss.position.x = Math.sin(state.boss.elapsed * 0.74) * 2.6;
+    boss.position.y = 1.6 + Math.sin(state.boss.elapsed * 1.4) * 0.22;
+    boss.rotation.y += delta * 0.45;
+    boss.rotation.z = Math.sin(state.boss.elapsed * 0.9) * 0.05;
+
+    if (!state.boss.retreating) {
+      state.boss.attackTimer -= delta;
+      state.boss.coreTimer -= delta;
+
+      if (state.boss.attackTimer <= 0) {
+        spawnBossPattern();
+        state.boss.attackTimer = Math.max(0.82, 1.65 - state.boss.wave * 0.08) + randomRange(0.08, 0.24);
+      }
+
+      if (state.boss.coreTimer <= 0) {
+        spawnBossCore();
+        state.boss.coreTimer = Math.max(1.8, 3.4 - state.boss.wave * 0.12) + randomRange(0.1, 0.4);
+      }
+
+      if (state.boss.elapsed > 22 + state.boss.wave * 2) {
+        bossEscapes();
+      }
+    } else if (boss.position.z < -104) {
+      clearBossWave();
+    }
+  }
+
   function updateHud() {
     scoreValue.textContent = String(Math.floor(state.score)).padStart(4, "0");
     shieldValue.textContent = Math.max(0, Math.round(state.shield)) + "%";
     speedValue.textContent = Math.round(state.speed * 10) + " KT";
     bestValue.textContent = String(Math.floor(state.bestScore)).padStart(4, "0");
+    updateBossHud();
+  }
+
+  function updateBossHud() {
+    if (state.boss.active) {
+      bossValue.textContent = "B" + state.boss.wave + " " + state.boss.health + "/" + state.boss.maxHealth;
+      return;
+    }
+
+    bossValue.textContent = state.boss.wave > 0 ? "Wave " + (state.boss.wave + 1) : "CALM";
   }
 
   function updateModeBadge() {
@@ -663,6 +933,142 @@ import * as THREE from "./vendor/three.module.js";
     }
   }
 
+  function loadAudioEnabled() {
+    try {
+      const saved = window.localStorage.getItem("rollover-audio-enabled");
+      return saved !== "off";
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function saveAudioEnabled() {
+    try {
+      window.localStorage.setItem("rollover-audio-enabled", audio.enabled ? "on" : "off");
+    } catch (error) {
+      return;
+    }
+  }
+
+  function updateAudioButton() {
+    audioButton.textContent = audio.enabled ? "Audio On" : "Audio Off";
+  }
+
+  function ensureAudio() {
+    if (!audio.enabled) {
+      return null;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return null;
+    }
+
+    if (!audio.context) {
+      audio.context = new AudioContextClass();
+      audio.master = audio.context.createGain();
+      audio.master.gain.value = 0.08;
+      audio.master.connect(audio.context.destination);
+    }
+
+    if (audio.context.state === "suspended") {
+      audio.context.resume();
+    }
+
+    return audio.context;
+  }
+
+  function playTone(options) {
+    if (!audio.enabled) {
+      return;
+    }
+
+    const context = ensureAudio();
+    if (!context || !audio.master) {
+      return;
+    }
+
+    const now = context.currentTime + (options.delay || 0);
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    const duration = options.duration || 0.14;
+    const attack = options.attack || 0.01;
+    const gain = options.gain || 0.03;
+    const endFrequency = options.endFrequency || options.frequency || 440;
+
+    oscillator.type = options.type || "sine";
+    oscillator.frequency.setValueAtTime(options.frequency || 440, now);
+    oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
+
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.exponentialRampToValueAtTime(gain, now + attack);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audio.master);
+    oscillator.start(now);
+    oscillator.stop(now + duration + 0.03);
+  }
+
+  function playStartSound() {
+    playTone({ type: "triangle", frequency: 360, endFrequency: 520, duration: 0.12, gain: 0.025 });
+    playTone({ type: "triangle", frequency: 540, endFrequency: 860, duration: 0.16, gain: 0.022, delay: 0.09 });
+  }
+
+  function playHitSound() {
+    playTone({ type: "sawtooth", frequency: 220, endFrequency: 92, duration: 0.22, gain: 0.04 });
+  }
+
+  function playPickupSound(type) {
+    if (type === "boost") {
+      playTone({ type: "square", frequency: 520, endFrequency: 880, duration: 0.12, gain: 0.022 });
+      playTone({ type: "triangle", frequency: 760, endFrequency: 1280, duration: 0.16, gain: 0.018, delay: 0.07 });
+      return;
+    }
+
+    if (type === "score") {
+      playTone({ type: "sine", frequency: 880, endFrequency: 1100, duration: 0.1, gain: 0.02 });
+      playTone({ type: "sine", frequency: 1180, endFrequency: 1460, duration: 0.12, gain: 0.016, delay: 0.05 });
+      return;
+    }
+
+    if (type === "boss") {
+      playTone({ type: "triangle", frequency: 420, endFrequency: 760, duration: 0.16, gain: 0.026 });
+      playTone({ type: "triangle", frequency: 720, endFrequency: 1180, duration: 0.18, gain: 0.022, delay: 0.08 });
+      return;
+    }
+
+    playTone({ type: "triangle", frequency: 620, endFrequency: 940, duration: 0.14, gain: 0.02 });
+    playTone({ type: "sine", frequency: 920, endFrequency: 1240, duration: 0.12, gain: 0.016, delay: 0.06 });
+  }
+
+  function playBossWarningSound() {
+    playTone({ type: "square", frequency: 180, endFrequency: 180, duration: 0.12, gain: 0.03 });
+    playTone({ type: "square", frequency: 240, endFrequency: 240, duration: 0.12, gain: 0.03, delay: 0.16 });
+    playTone({ type: "square", frequency: 180, endFrequency: 180, duration: 0.12, gain: 0.03, delay: 0.32 });
+  }
+
+  function playBossHitSound() {
+    playTone({ type: "sawtooth", frequency: 160, endFrequency: 96, duration: 0.18, gain: 0.032 });
+    playTone({ type: "triangle", frequency: 260, endFrequency: 210, duration: 0.16, gain: 0.018, delay: 0.05 });
+  }
+
+  function playBossDefeatSound() {
+    playTone({ type: "triangle", frequency: 360, endFrequency: 520, duration: 0.16, gain: 0.02 });
+    playTone({ type: "triangle", frequency: 540, endFrequency: 820, duration: 0.18, gain: 0.022, delay: 0.1 });
+    playTone({ type: "triangle", frequency: 760, endFrequency: 1240, duration: 0.22, gain: 0.026, delay: 0.22 });
+  }
+
+  function toggleAudio() {
+    audio.enabled = !audio.enabled;
+    saveAudioEnabled();
+    updateAudioButton();
+    if (audio.enabled) {
+      ensureAudio();
+      playTone({ type: "sine", frequency: 700, endFrequency: 940, duration: 0.12, gain: 0.018 });
+    }
+  }
+
   function showMessage(text, duration) {
     messageEl.textContent = text;
     messageEl.classList.add("visible");
@@ -685,6 +1091,7 @@ import * as THREE from "./vendor/three.module.js";
       if (event && typeof event.preventDefault === "function") {
         event.preventDefault();
       }
+      ensureAudio();
       handler(event);
     }
 
@@ -740,6 +1147,7 @@ import * as THREE from "./vendor/three.module.js";
       updateHud();
       updateMenuCopy();
       updateModeBadge();
+      updateAudioButton();
       if (!supportsDeviceOrientation()) {
         gyroStartButton.textContent = "센서 없음";
       } else if (!isSecureSensorContext()) {
@@ -899,6 +1307,7 @@ import * as THREE from "./vendor/three.module.js";
 
   function startRun(mode) {
     clearEnemies();
+    clearBossWave();
     resetRunState();
 
     state.controlMode = mode;
@@ -926,6 +1335,7 @@ import * as THREE from "./vendor/three.module.js";
     overlay.classList.remove("visible");
     state.playing = true;
     document.body.classList.add("playing");
+    playStartSound();
     updateHud();
   }
 
@@ -948,6 +1358,8 @@ import * as THREE from "./vendor/three.module.js";
     state.cameraShake = 0;
     state.playerFloat = 0;
     state.pointerDown = false;
+    state.boss.wave = 0;
+    state.boss.nextAt = 28;
     player.position.x = 0;
     player.rotation.set(0, 0, 0);
     speedOverlay.style.opacity = "0";
@@ -958,6 +1370,7 @@ import * as THREE from "./vendor/three.module.js";
   function endRun() {
     state.playing = false;
     document.body.classList.remove("playing");
+    clearBossWave();
     state.bestScore = Math.max(state.bestScore, Math.floor(state.score));
     safeStorage.saveBest(state.bestScore);
     updateHud();
@@ -1038,21 +1451,28 @@ import * as THREE from "./vendor/three.module.js";
       delta,
     );
 
-    state.spawnTimer -= delta;
-    if (state.spawnTimer <= 0) {
-      if (Math.random() < 0.22) {
-        spawnPickup();
-      } else {
-        spawnEnemy();
-      }
-      const nextWave = Math.max(0.24, 0.72 - state.time * 0.015);
-      state.spawnTimer = nextWave + randomRange(0.02, 0.14);
-      if (state.speed > 48 && Math.random() < 0.18) {
-        state.spawnTimer *= 0.65;
+    if (!state.boss.active && state.time >= state.boss.nextAt) {
+      startBossWave();
+    }
+
+    if (!state.boss.active) {
+      state.spawnTimer -= delta;
+      if (state.spawnTimer <= 0) {
+        if (Math.random() < 0.22) {
+          spawnPickup();
+        } else {
+          spawnEnemy();
+        }
+        const nextWave = Math.max(0.24, 0.72 - state.time * 0.015);
+        state.spawnTimer = nextWave + randomRange(0.02, 0.14);
+        if (state.speed > 48 && Math.random() < 0.18) {
+          state.spawnTimer *= 0.65;
+        }
       }
     }
 
     animateWorld(delta, state.speed);
+    updateBossWave(delta);
     updateEnemies(delta);
     updateCamera(delta, currentTilt);
     updateEffects(delta);
@@ -1164,6 +1584,7 @@ import * as THREE from "./vendor/three.module.js";
     state.damagePulse = 1;
     state.cameraShake = 1;
     showMessage((enemyData && enemyData.hitMessage) || "Impact", 0.9);
+    playHitSound();
 
     if (state.shield <= 0) {
       endRun();
@@ -1176,6 +1597,16 @@ import * as THREE from "./vendor/three.module.js";
     state.score += pickupData.scoreReward || 0;
     state.speed = Math.min(64, state.speed + (pickupData.speedReward || 0));
     state.pickupPulse = 1;
+
+    if (pickupData.type === "boss" && state.boss.active && !state.boss.retreating) {
+      state.boss.health = Math.max(0, state.boss.health - 1);
+      playBossHitSound();
+      if (state.boss.health === 0) {
+        defeatBossWave();
+      }
+    } else {
+      playPickupSound(pickupData.type);
+    }
 
     const gainedShield = Math.round(state.shield - shieldBefore);
     let label = pickupData.collectMessage || "Core";

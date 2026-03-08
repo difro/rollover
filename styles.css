@@ -203,6 +203,14 @@ h1 {
   gap: 12px;
   margin-top: 14px;
   pointer-events: auto;
+  flex-wrap: wrap;
+}
+
+.action-buttons {
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .mode-pill {
@@ -236,11 +244,13 @@ button:disabled {
   opacity: 0.45;
 }
 
+#audio-button,
 #recenter-button,
 .overlay-actions button {
   pointer-events: auto;
 }
 
+#audio-button,
 #recenter-button {
   padding: 10px 14px;
   background:
