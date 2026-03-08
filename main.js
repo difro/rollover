@@ -326,13 +326,14 @@ import * as THREE from "./vendor/three.module.js";
     }
 
     if (!supportsDeviceOrientation()) {
-      sensorNote.textContent = "현재 환경에서는 자이로센서를 쓸 수 없어 터치 조작으로 바로 플레이합니다.";
+      sensorNote.textContent =
+        "현재 환경에서는 자이로센서를 쓸 수 없습니다. 필요하면 아래 터치 시작을 직접 눌러 플레이하세요.";
       return;
     }
 
     if (!isSecureSensorContext()) {
       sensorNote.textContent =
-        "휴대폰 센서는 HTTPS 또는 localhost 에서만 동작합니다. 지금 주소에서는 터치 조작만 가능합니다.";
+        "휴대폰 센서는 HTTPS 또는 localhost 에서만 동작합니다. 센서를 쓰려면 보안 주소로 다시 열어야 합니다.";
       return;
     }
 
@@ -533,8 +534,8 @@ import * as THREE from "./vendor/three.module.js";
 
   async function startWithGyro() {
     if (!supportsDeviceOrientation()) {
-      updateMenuCopy("이 브라우저는 센서를 노출하지 않아 터치 조작으로 시작합니다.");
-      startRun("touch");
+      updateMenuCopy("이 브라우저는 센서를 노출하지 않습니다. 센서 시작은 사용할 수 없습니다.");
+      showMessage("No Gyro", 1.2);
       return;
     }
 
@@ -542,20 +543,20 @@ import * as THREE from "./vendor/three.module.js";
       updateMenuCopy(
         "현재 주소는 보안 컨텍스트가 아니라 센서를 쓸 수 없습니다. HTTPS 또는 localhost 로 열어야 합니다.",
       );
-      startRun("touch");
+      showMessage("HTTPS Needed", 1.2);
       return;
     }
 
     try {
       const permissionState = await requestSensorPermission();
       if (permissionState !== "granted") {
-        updateMenuCopy("센서 권한이 거부되어 터치 조작으로 전환합니다.");
-        startRun("touch");
+        updateMenuCopy("센서 권한이 거부되었습니다. 브라우저 설정에서 모션 권한을 허용한 뒤 다시 시도하세요.");
+        showMessage("Gyro Blocked", 1.2);
         return;
       }
     } catch (error) {
-      updateMenuCopy("센서 권한 요청에 실패해 터치 조작으로 전환합니다.");
-      startRun("touch");
+      updateMenuCopy("센서 권한 요청에 실패했습니다. 페이지를 다시 열거나 브라우저 권한 설정을 확인하세요.");
+      showMessage("Gyro Error", 1.2);
       return;
     }
 
