@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <title>Rollover Run</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Aldrich&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" aria-label="Rollover Run scene"></div>
+
+    <div id="hud">
+      <div class="top-bar">
+        <div class="stat-card">
+          <span class="stat-label">Score</span>
+          <strong id="score-value" class="stat-value">0000</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Shield</span>
+          <strong id="shield-value" class="stat-value">100%</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Velocity</span>
+          <strong id="speed-value" class="stat-value">320 KT</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Best</span>
+          <strong id="best-value" class="stat-value">0000</strong>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <div class="briefing-card">
+          <p class="briefing-label">Flight Deck</p>
+          <p id="status-line" class="briefing-text">
+            휴대폰을 좌우로 기울여 비행 라인을 유지하세요.
+          </p>
+          <div class="briefing-actions">
+            <span id="mode-pill" class="mode-pill">Touch</span>
+            <button id="recenter-button" type="button">Recenter</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="message" aria-live="polite"></div>
+      <div id="speed-overlay" aria-hidden="true"></div>
+      <div id="damage-flash" aria-hidden="true"></div>
+      <div id="reticle" aria-hidden="true">
+        <span class="reticle-line horizontal"></span>
+        <span class="reticle-line vertical"></span>
+      </div>
+    </div>
+
+    <div id="overlay" class="visible">
+      <div class="overlay-shell">
+        <p class="eyebrow">Mobile Gyro 3D Dodge</p>
+        <h1>Rollover Run</h1>
+        <p id="overlay-body" class="overlay-body">
+          휴대폰을 비행기처럼 좌우로 롤 해서 상공에서 쏟아지는 적 드론을 피하세요.
+        </p>
+
+        <div class="overlay-grid">
+          <div class="overlay-panel">
+            <span>Control</span>
+            <strong>자이로 + 터치 폴백</strong>
+          </div>
+          <div class="overlay-panel">
+            <span>Goal</span>
+            <strong>정면으로 밀려오는 적 회피</strong>
+          </div>
+          <div class="overlay-panel">
+            <span>Style</span>
+            <strong>three.js 3D + 속도감</strong>
+          </div>
+        </div>
+
+        <div class="overlay-actions">
+          <button id="gyro-start" class="primary" type="button">센서로 시작</button>
+          <button id="touch-start" class="secondary" type="button">터치로 시작</button>
+        </div>
+
+        <p id="sensor-note" class="sensor-note">
+          아이폰은 시작 버튼을 눌렀을 때 센서 권한을 요청합니다.
+        </p>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"></script>
+    <script src="./main.js"></script>
+  </body>
+</html>
